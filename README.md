@@ -2,7 +2,7 @@ Building Matplotlib on Windows
 ==============================
 
 This is an updated version of jbmohler/matplotlib-winbuild.\
-This version has added support to build and install matplotlib on Python 3.5 or higher. In addition, it includes the latest versions of freetype, zlib, libpng, tcl, & tk
+Support has been added to build and install matplotlib on Python 3.5 or higher in MS windows. In addition, the latest versions of freetype, zlib, libpng, tcl, & tk are embedded.
 -----
 This is a set of scripts to build matplotlib from source on the MS Windows
 platform.  It builds matplotlib requiring only Visual Studio and CMake as
