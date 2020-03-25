@@ -3,7 +3,7 @@ This file extracts and builds library dependencies libpng, zlib, & freetype2 on
 MS Windows.  It also extract tcl/tk for the header files.
 
 There are four possible build targets -- one for each permutation of VS 2008,
-2010 and 32/64 bit.  This builds the configuration that matches the Python
+2010, VS 2015 and 32/64 bit.  This builds the configuration that matches the Python
 install that is executing.
 
 For Python 2.6, 2.7, 3.2:
@@ -15,6 +15,11 @@ For Python 3.3, 3.4:
 
 - VS 2010, 32 bit -- Windows SDK v7.1
 - VS 2010, 64 bit -- Windows SDK v7.1
+
+For Python 3.5, 3.6, 3.7, 3.8:
+
+- VS 2015, 32 bit -- Windows SDK v7.1
+- VS 2015, 64 bit -- Windows SDK v7.1
 """
 
 from __future__ import print_function, absolute_import
@@ -51,27 +56,27 @@ DEPSBUILD = os.path.join(os.path.dirname(os.path.normpath(__file__)), 'build')
 X64 = platform.architecture()[0] == '64bit'
 PYVER = sys.version_info[:2]
 VS2010 = PYVER >= (3, 3)
-# If not VS2010, then use VS2008
+VS2015 = PYVER >= (3, 5)
 
 VCVARSALL = None
 
 def prepare_build_cmd(build_cmd, **kwargs):
     global VCVARSALL
     if VCVARSALL == None:
-        candidate = msvc.find_vcvarsall(10.0 if VS2010 else 9.0)
+        candidate = msvc.find_vcvarsall(14.0 if VS2015 else 10.0 if VS2010 else 9.0)
         if candidate == None:
-            raise RuntimeError('Microsoft VS {} required'.format('2010' if VS2010 else '2008'))
+            raise RuntimeError('Microsoft VS {} required'.format('2015' if VS2015 else '2010' if VS2010 else '2008'))
         else:
             VCVARSALL = candidate
 
     return build_cmd.format(vcvarsall=VCVARSALL, xXX='x64' if X64 else 'x86', **kwargs)
 
 def config_dir():
-    segment = 'msvcr{}-x{}'.format('100' if VS2010 else '90', '64' if X64 else '32')
+    segment = 'msvcr{}-x{}'.format('140' if VS2015 else '100' if VS2010 else '90', '64' if X64 else '32')
     return os.path.join(DEPSBUILD, segment)
 
 def tcl_config_dir():
-    return os.path.join(config_dir(), 'tcl85', 'include')
+    return os.path.join(config_dir(), 'tcl86' if VS2015 else 'tcl85', 'include')
 
 def build_tcl():
     inclib = config_dir()
@@ -82,20 +87,20 @@ def build_tcl():
     if not os.path.exists(tcl_inclib_x11):
         os.makedirs(tcl_inclib_x11)
 
-    distfile = os.path.join(DEPSSRC, 'tcl8513-src.zip')
+    distfile = os.path.join(DEPSSRC, 'tcl8610-src.zip' if VS2015 else 'tcl8513-src.zip')
     compfile = os.path.join(tcl_inclib, 'tcl.h')
     if not os.path.exists(compfile) or os.path.getmtime(distfile) > os.path.getmtime(compfile):
         zip_extract(distfile, DEPSBUILD)
-        targetdir = os.path.join(DEPSBUILD, 'tcl8.5.13')
+        targetdir = os.path.join(DEPSBUILD, 'tcl8.6.10' if VS2015 else 'tcl8.5.13')
         headers = glob.glob(os.path.join(targetdir, 'generic', '*.h'))
         for filename in headers:
             shutil.copy(filename, tcl_inclib)
 
-    distfile = os.path.join(DEPSSRC, 'tk8513-src.zip')
+    distfile = os.path.join(DEPSSRC, 'tk8610-src.zip' if VS2015 else 'tk8513-src.zip')
     compfile = os.path.join(tcl_inclib, 'tk.h')
     if not os.path.exists(compfile) or os.path.getmtime(distfile) > os.path.getmtime(compfile):
         zip_extract(distfile, DEPSBUILD)
-        targetdir = os.path.join(DEPSBUILD, 'tk8.5.13')
+        targetdir = os.path.join(DEPSBUILD, 'tk8.6.10' if VS2015 else 'tk8.5.13')
         headers = glob.glob(os.path.join(targetdir, 'generic', '*.h'))
         for filename in headers:
             shutil.copy(filename, tcl_inclib)
@@ -123,7 +128,13 @@ def build_zlib():
     if not os.path.exists(inclib):
         os.makedirs(inclib)
 
-    distfile = os.path.join(DEPSSRC, 'zlib128.zip')
+    if VS2015:
+        distfile = os.path.join(DEPSSRC, 'zlib1211.zip')
+        srcpath = os.path.join(DEPSBUILD, 'zlib-1.2.11')
+    else:
+        distfile = os.path.join(DEPSSRC, 'zlib128.zip')
+        srcpath = os.path.join(DEPSBUILD, 'zlib-1.2.8')
+	
     compfile = os.path.join(inclib, 'z.lib')
     if os.path.exists(compfile) and os.path.getmtime(distfile) < os.path.getmtime(compfile):
         # already built
@@ -136,7 +147,7 @@ def build_zlib():
         cmd.write(prepare_build_cmd(ZLIB_BUILD_CMD))
 
     os.environ['INCLIB'] = inclib
-    os.environ['ZLIB'] = os.path.join(DEPSBUILD, 'zlib-1.2.8')
+    os.environ['ZLIB'] = srcpath
     os.system(cmdfile)
 
 LIBPNG_BUILD_CMD = """\
@@ -169,7 +180,13 @@ def build_libpng():
     if not os.path.exists(inclib):
         os.mkdir(inclib)
 
-    distfile = os.path.join(DEPSSRC, 'libpng-1.6.7.tar.gz')
+    if VS2015:
+        distfile = os.path.join(DEPSSRC, 'libpng-1.6.37.tar.gz')
+        srcpath = os.path.join(DEPSBUILD, 'libpng-1.6.37')
+    else:
+        distfile = os.path.join(DEPSSRC, 'libpng-1.6.7.tar.gz')
+        srcpath = os.path.join(DEPSBUILD, 'libpng-1.6.7')
+	
     compfile = os.path.join(inclib, 'png.lib')
     if os.path.exists(compfile) and os.path.getmtime(distfile) < os.path.getmtime(compfile):
         # already built
@@ -182,10 +199,9 @@ def build_libpng():
         cmd.write(prepare_build_cmd(LIBPNG_BUILD_CMD))
 
     os.environ['INCLIB'] = inclib
-    os.environ['LIBPNG'] = os.path.join(DEPSBUILD, 'libpng-1.6.7')
+    os.environ['LIBPNG'] = srcpath
     os.system(cmdfile)
 
-FREETYPE_VERSION = '2.4.11'
 
 FREETYPE_BUILD_CMD = """\
 @ECHO OFF
@@ -194,10 +210,23 @@ call "{vcvarsall}" {xXX}
 set MSBUILD=C:\\Windows\\Microsoft.NET\\Framework\\v4.0.30319\\MSBuild.exe
 
 rd /S /Q %FREETYPE%\\objs
-%MSBUILD% %FREETYPE%\\builds\\win32\\{vc20xx}\\freetype.sln /t:Clean;Build /p:Configuration="{config}";Platform={WinXX}
+%MSBUILD% %FREETYPE%\\builds\\windows\\{vc20xx}\\freetype.sln /t:Clean;Build /p:Configuration="{config}";Platform={WinXX}
 xcopy /Y /E /Q %FREETYPE%\\include %INCLIB%
 xcopy /Y /E /Q %FREETYPE%\\objs\\win32\\{vc20xx} %INCLIB%
 copy /Y /B %FREETYPE%\\objs\\win32\\{vc20xx}\\*.lib %INCLIB%\\freetype.lib
+"""
+
+FREETYPE_BUILD_CMD_2015 = """\
+rem @ECHO OFF
+REM call "%ProgramFiles%\\Microsoft SDKs\\Windows\\v7.0\\Bin\\SetEnv.Cmd" /Release /{xXX} /xp
+call "{vcvarsall}" {xXX}
+set MSBUILD="C:\\Program Files (x86)\\MSBuild\\14.0\\Bin\\MSBuild.exe"
+
+rd /S /Q %FREETYPE%\\objs
+%MSBUILD% %FREETYPE%\\builds\\windows\\{vc20xx}\\freetype.sln /tv:14.0 /t:Clean;Build /p:Configuration="{config}";Platform={WinXX}
+xcopy /Y /E /Q %FREETYPE%\\include %INCLIB%
+xcopy /Y /E /Q %FREETYPE%\\objs\\{WinXX}\\Release %INCLIB%
+copy /Y /B %FREETYPE%\\objs\\{WinXX}\\Release\\*.lib %INCLIB%\\freetype.lib
 """
 
 def build_freetype():
@@ -205,7 +234,7 @@ def build_freetype():
     if not os.path.exists(inclib):
         os.mkdir(inclib)
 
-    distfile = os.path.join(DEPSSRC, 'ft2411.zip')
+    distfile = os.path.join(DEPSSRC, 'ft2101.zip' if VS2015 else 'ft2411.zip')
     compfile = os.path.join(inclib, 'freetype.lib')
     if os.path.exists(compfile) and os.path.getmtime(distfile) < os.path.getmtime(compfile):
         # already built
@@ -213,16 +242,19 @@ def build_freetype():
 
     vc = 'vc2010' if VS2010 else 'vc2008'
     WinXX = 'x64' if X64 else 'Win32'
+    builds_subfolder = 'windows' if VS2015 else 'win32'
 
     zip_extract(distfile, DEPSBUILD)
-    ft_dir = os.path.join(DEPSBUILD, 'freetype-2.4.11')
-    fixproj(os.path.join(ft_dir, 'builds', 'win32', vc, 'freetype.sln'), WinXX)
-    fixproj(os.path.join(ft_dir, 'builds', 'win32', vc, 'freetype.{}'.format('vcxproj' if VS2010 else 'vcproj')), WinXX)
-
+    ft_dir = os.path.join(DEPSBUILD, 'freetype-2.10.1' if VS2015 else 'freetype-2.4.11')
+    fixproj(os.path.join(ft_dir, 'builds', builds_subfolder, vc, 'freetype.sln'), WinXX)
+    fixproj(os.path.join(ft_dir, 'builds', builds_subfolder, vc, 'freetype.{}'.format('vcxproj' if VS2010 else 'vcproj')), WinXX)
+ 	
     cmdfile = os.path.join(DEPSBUILD, 'build_freetype.cmd')
     with open(cmdfile, 'w') as cmd:
-        cmd.write(prepare_build_cmd(FREETYPE_BUILD_CMD, vc20xx=vc, WinXX=WinXX, config='Release' if VS2010 else 'LIB Release'))
-
+        if VS2015:
+            cmd.write(prepare_build_cmd(FREETYPE_BUILD_CMD_2015, vc20xx=vc, WinXX=WinXX, config='Release' if VS2010 else 'LIB Release'))
+        else:
+            cmd.write(prepare_build_cmd(FREETYPE_BUILD_CMD, vc20xx=vc, WinXX=WinXX, config='Release' if VS2010 else 'LIB Release'))
     os.environ['INCLIB'] = inclib
     os.environ['FREETYPE'] = ft_dir
     os.system(cmdfile)
